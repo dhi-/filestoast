@@ -1,12 +1,13 @@
-var esprima = require('esprima');
 var fs = require('vinyl-fs');
 var map = require('map-stream');
-
+var parse = require('acorn/acorn_loose').parse_dammit;
+var q = require('q');
 
 var files = [];
-var esprimaOptions = {
-    tolerant : true,
-    loc : true
+var acorn_options = {
+    ecmaVersion: 6,
+    allowReturnOutsideFunction: true,
+    locations: true
 };
 
 function withEachFile(file,next){
@@ -20,9 +21,9 @@ function storeFile(file){
         var contentString = file._contents.toString();
         try{
             files.push({
-                path : file.path,
-                content : contentString,
-                ast : esprima.parse(contentString,esprimaOptions)
+                path: file.path,
+                content: contentString,
+                ast: parse(contentString, acorn_options)
             });
         }
         catch(c){
@@ -33,12 +34,13 @@ function storeFile(file){
 
 
 
-module.exports.process = function(glob,callback){
+module.exports.process = function(glob){
+    var defer = q.defer();
     var r = fs.src(glob);
     r.pipe(map(withEachFile));
     function onAllRead(){
-        callback(files);
+        defer.resolve(files);
     }
     r.on('end',onAllRead);
-    return r;
+    return defer.promise;
 };
